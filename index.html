@@ -1,0 +1,251 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live Sports 474</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0b0e14;color:white;font-family:Arial,sans-serif}
+.header{background:linear-gradient(120deg,#9f1239,#e11d48);padding:22px 10px;text-align:center;font-size:25px;font-weight:bold}
+.sub{text-align:center;color:#aaa;padding:10px;font-size:12px}
+.search{display:block;width:92%;margin:12px auto;padding:14px;border-radius:25px;background:#202635;color:white;border:1px solid #444;font-size:15px}
+.tabs,.filters{display:flex;gap:8px;overflow-x:auto;padding:12px;background:#151923}
+button{cursor:pointer;white-space:nowrap}
+.tabs button,.filters button{border:0;border-radius:22px;padding:11px 17px;background:#303747;color:white}
+button.active{background:#e11d48}
+.refresh{display:block;margin:14px auto;padding:12px 25px;background:#2563eb;color:white;border:0;border-radius:25px}
+.info{text-align:center;color:#aaa;font-size:12px;padding:8px}
+.card{background:#191f2b;margin:12px;padding:15px;border-radius:15px;border:1px solid #303747}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.badge{background:#dc2626;padding:5px 10px;border-radius:20px;font-size:11px}
+.upcoming{background:#d97706}
+.finished{background:#475569}
+.league{font-size:12px;color:#fbbf24}
+.teams{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;text-align:center;gap:8px;margin:18px 0}
+.team{font-weight:bold;font-size:15px;overflow-wrap:anywhere}
+.team img{display:block;width:38px;height:38px;object-fit:contain;margin:0 auto 8px}
+.vs{color:#aaa;font-size:12px}
+.score{text-align:center;color:#4ade80;font-weight:bold;margin:10px}
+.details{text-align:center;color:#aaa;font-size:12px;margin:10px}
+.matchlink{display:block;text-align:center;background:#263449;color:white;padding:11px;border-radius:25px;text-decoration:none;margin-top:12px;font-size:13px}
+.ad{margin:14px;background:#191f2b;border:1px dashed #555;padding:22px;text-align:center;color:#888;border-radius:10px}
+.message{text-align:center;padding:30px;color:#bbb}
+.footer{text-align:center;color:#888;padding:25px;font-size:12px}
+</style>
+</head>
+
+<body>
+
+<div class="header">🏆 LIVE SPORTS 474</div>
+<div class="sub">CRICKET • FOOTBALL • LIVE SCORES</div>
+
+<input id="search" class="search"
+placeholder="🔍 Search team or league...">
+
+<div class="tabs" id="sports">
+<button class="active" data-sport="all">🌍 All Sports</button>
+<button data-sport="cricket">🏏 Cricket</button>
+<button data-sport="football">⚽ Football</button>
+</div>
+
+<div class="filters" id="filters">
+<button class="active" data-filter="all">All</button>
+<button data-filter="live">🔴 Live</button>
+<button data-filter="upcoming">⏰ Upcoming</button>
+<button data-filter="finished">Finished</button>
+</div>
+
+<button class="refresh" id="refresh">↻ Refresh Scores</button>
+
+<div id="updated" class="info">Connecting to sports API...</div>
+<div id="matches">
+<div class="message">Loading matches...</div>
+</div>
+
+<div class="ad">
+<strong>ADVERTISEMENT</strong>
+<p>Paste your approved Adsterra banner code here.</p>
+</div>
+
+<div class="footer">
+LIVE SPORTS 474<br>
+Scores provided by SportScore<br>
+<a href="https://sportscore.com/developers/api/"
+style="color:#fbbf24">Sports data source</a>
+<br><br>
+Scores and match availability depend on the API.
+</div>
+
+<script>
+const API="https://sportscore.com/api/widget/matches/";
+
+let matches=[];
+let sport="all";
+let filter="all";
+
+const box=document.getElementById("matches");
+
+function safe(value){
+ return String(value??"").replace(/[&<>"']/g,c=>({
+ "&":"&amp;","<":"&lt;",">":"&gt;",
+ '"':"&quot;","'":"&#39;"
+ }[c]));
+}
+
+function teamName(team){
+ return typeof team==="string" ? team : team?.name||"Unknown";
+}
+
+function statusOf(m){
+ const s=String(m.status||"").toLowerCase();
+
+ if(s.includes("live")||s.includes("progress")||
+ s.includes("inplay")||s.includes("started"))
+ return "live";
+
+ if(s.includes("finish")||s.includes("complete")||
+ s.includes("ended"))
+ return "finished";
+
+ return "upcoming";
+}
+
+async function getMatches(type){
+ const response=await fetch(
+ API+"?sport="+type+"&limit=10"
+ );
+
+ if(!response.ok) throw new Error(type+" API error");
+
+ const data=await response.json();
+
+ if(!Array.isArray(data.matches))
+ throw new Error("Invalid API response");
+
+ return data.matches.map(m=>({...m,sport:type}));
+}
+
+async function loadMatches(){
+ box.innerHTML='<div class="message">Loading latest matches...</div>';
+
+ try{
+  const results=await Promise.allSettled([
+   getMatches("cricket"),
+   getMatches("football")
+  ]);
+
+  matches=results
+   .filter(r=>r.status==="fulfilled")
+   .flatMap(r=>r.value);
+
+  render();
+
+  const errors=results.filter(r=>r.status==="rejected");
+
+  document.getElementById("updated").textContent=
+   "Last updated: "+new Date().toLocaleTimeString()+
+   (errors.length?" • Some data unavailable":" • Data connected");
+
+  if(errors.length===2){
+   box.innerHTML='<div class="message">API connection failed. Check internet and try again.</div>';
+  }
+
+ }catch(e){
+  box.innerHTML='<div class="message">Unable to load matches. Please refresh.</div>';
+ }
+}
+
+function render(){
+ const query=document.getElementById("search").value.toLowerCase();
+
+ const list=matches.filter(m=>{
+  const names=(teamName(m.home)+" "+teamName(m.away)+" "+
+  (m.competition||"")+" "+m.sport).toLowerCase();
+
+  return (sport==="all"||m.sport===sport)&&
+  (filter==="all"||statusOf(m)===filter)&&
+  names.includes(query);
+ });
+
+ if(!list.length){
+  box.innerHTML='<div class="message">No matches found in this category.</div>';
+  return;
+ }
+
+ box.innerHTML=list.map(m=>{
+  const state=statusOf(m);
+  const home=teamName(m.home);
+  const away=teamName(m.away);
+
+  const badge=state==="live"?"🔴 LIVE":
+  state==="finished"?"FINISHED":"UPCOMING";
+
+  const cls=state==="live"?"":state==="finished"?
+  "finished":"upcoming";
+
+  const homeLogo=m.home_logo?
+  '<img src="'+safe(m.home_logo)+'" alt="">':"";
+
+  const awayLogo=m.away_logo?
+  '<img src="'+safe(m.away_logo)+'" alt="">':"";
+
+  const url=m.url?
+  new URL(m.url,"https://sportscore.com").href:"";
+
+  return `
+  <div class="card">
+   <div class="top">
+    <span class="badge ${cls}">${badge}</span>
+    <span class="league">${safe(m.competition||m.sport)}</span>
+   </div>
+
+   <div class="teams">
+    <div class="team">${homeLogo}${safe(home)}</div>
+    <div class="vs">VS</div>
+    <div class="team">${awayLogo}${safe(away)}</div>
+   </div>
+
+   <div class="score">
+    ${safe(m.home_score??"-")} - ${safe(m.away_score??"-")}
+   </div>
+
+   <div class="details">
+    ${safe(m.status_text||m.time||"Match details unavailable")}
+    • ${m.sport==="cricket"?"🏏 Cricket":"⚽ Football"}
+   </div>
+
+   ${url?'<a class="matchlink" target="_blank" rel="noopener" href="'+safe(url)+'">VIEW MATCH DETAILS ↗</a>':""}
+  </div>`;
+ }).join("");
+}
+
+document.getElementById("search").addEventListener("input",render);
+
+document.querySelectorAll("#sports button").forEach(btn=>{
+ btn.onclick=()=>{
+  document.querySelectorAll("#sports button").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  sport=btn.dataset.sport;
+  render();
+ };
+});
+
+document.querySelectorAll("#filters button").forEach(btn=>{
+ btn.onclick=()=>{
+  document.querySelectorAll("#filters button").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  filter=btn.dataset.filter;
+  render();
+ };
+});
+
+document.getElementById("refresh").onclick=loadMatches;
+
+loadMatches();
+setInterval(loadMatches,60000);
+</script>
+
+</body>
+</html>
